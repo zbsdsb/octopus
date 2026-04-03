@@ -136,6 +136,55 @@ export OCTOPUS_PORT=8080
 docker compose -f docker-compose.ghcr.yml up -d
 ```
 
+### 从官方镜像迁移到这个 Fork
+
+如果你当前线上跑的是官方镜像，例如：
+
+```yaml
+image: bestrui/octopus
+```
+
+并且你希望无损切换到这个 fork，最稳的做法是：
+
+1. 保持原来的数据挂载目录不变
+2. 先备份数据库和配置
+3. 只替换镜像地址
+4. 再重建容器
+
+以当前已经验证过的线上形态为例：
+
+```yaml
+services:
+  octopus:
+    image: ghcr.io/zbsdsb/octopus:dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - "/path/to/data:/app/data"
+    container_name: octopus
+    restart: unless-stopped
+```
+
+切换步骤：
+
+```bash
+# 1. 备份数据
+sudo cp -a /path/to/data/data.db /path/to/data/data.db.bak-$(date +%Y%m%d-%H%M%S)
+sudo cp -a /path/to/data/config.json /path/to/data/config.json.bak-$(date +%Y%m%d-%H%M%S)
+
+# 2. 修改 compose 中的镜像
+# image: bestrui/octopus
+# -> image: ghcr.io/zbsdsb/octopus:dev
+
+# 3. 拉取并重建
+docker compose pull octopus
+docker compose up -d octopus
+```
+
+迁移时不要把挂载目录改成新的空目录，否则会导致程序起一套全新的空数据。
+
+如果你当前使用的是 SQLite，也不建议让“老容器”和“新容器”同时写同一个 `data.db` 文件。更稳的做法是先复制一份数据库副本，在新端口做预演，通过后再切正式端口。
+
 ### GHCR 自动发布链路
 
 这个 fork 现在有两条镜像发布路径：

@@ -136,6 +136,55 @@ export OCTOPUS_PORT=8080
 docker compose -f docker-compose.ghcr.yml up -d
 ```
 
+### Migrate From The Official Image To This Fork
+
+If your current production deployment still uses the official image, for example:
+
+```yaml
+image: bestrui/octopus
+```
+
+the safest migration path is:
+
+1. keep the existing data mount unchanged
+2. back up the database and config first
+3. replace only the image reference
+4. recreate the container
+
+Using the already validated deployment shape as an example:
+
+```yaml
+services:
+  octopus:
+    image: ghcr.io/zbsdsb/octopus:dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - "/path/to/data:/app/data"
+    container_name: octopus
+    restart: unless-stopped
+```
+
+Migration steps:
+
+```bash
+# 1. Back up data
+sudo cp -a /path/to/data/data.db /path/to/data/data.db.bak-$(date +%Y%m%d-%H%M%S)
+sudo cp -a /path/to/data/config.json /path/to/data/config.json.bak-$(date +%Y%m%d-%H%M%S)
+
+# 2. Update the image in docker-compose.yml
+# image: bestrui/octopus
+# -> image: ghcr.io/zbsdsb/octopus:dev
+
+# 3. Pull and recreate
+docker compose pull octopus
+docker compose up -d octopus
+```
+
+Do not change the bind-mounted data directory to a new empty path during migration, or the service will start with a fresh empty dataset.
+
+If you are using SQLite, avoid running the old and new containers against the same `data.db` file at the same time. The safer approach is to create a copied database for precheck on another port, then switch the production container after validation.
+
 ### GHCR Publishing Workflows
 
 This fork now has two image publishing paths:
